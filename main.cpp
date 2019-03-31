@@ -4,29 +4,37 @@
  * by Lucas Consejo & Théo Ferreira
  * Ingesup B2B - Ynov Bordeaux
  */
+
+
+// Includes
 #include "mbed.h"
 #include "zest-radio-atzbrf233.h"
 #include "MQTTNetwork.h"
 #include "MQTTmbed.h"
 #include "MQTTClient.h"
 
+namespace {
+	#define PERIOD_MS 500
+}
+
+// Variables I2C & AnalogIn
+static I2C i2c(I2C1_SDA, I2C1_SCL);
+static AnalogIn analogic(ADC_IN1);
+uint8_t lm75_adress = 0x48 << 1;
+
+// Variables MQTT
 NetworkInterface *net;
 MQTTNetwork mqttNetwork;
 MQTT::Client<MQTTNetwork, Countdown> client;
-
-static I2C i2c(I2C1_SDA, I2C1_SCL);
-static AnalogIn analogic(ADC_IN1);
-
-uint8_t lm75_adress = 0x48 << 1;
+MQTT::Message message;
+int rc;
 int arrivedcount = 0;
 char buf[10];
 
+// Topics
 char* topic_temp = "LucasYnovB2b/feeds/temperature";
 char* topic_hum = "LucasYnovB2b/feeds/humidity";
 
-namespace {
-#define PERIOD_MS 500
-}
 
 // function that returns the temperature
 float temperature(){
@@ -51,7 +59,7 @@ void messageArrived(MQTT::MessageData& md)
     printf("Payload %.*s\r\n", message.payloadlen, (char*)message.payload);
 }
 
-// function that uses MQTT
+// function used MQTT
 int mqtt(){
 
 	int result;
@@ -90,7 +98,7 @@ int mqtt(){
 	uint16_t port = 1883;
 
 	printf("Connecting to %s:%d\r\n", hostname, port);
-	int rc = mqttNetwork.connect(hostname, port);
+	rc = mqttNetwork.connect(hostname, port);
 	if (rc != 0){
 		printf("rc from TCP connect is %d\r\n", rc);
 	}
@@ -109,8 +117,6 @@ int mqtt(){
 			printf("rc from MQTT subscribe is %d\r\n", rc);
 	}
 
-	MQTT::Message message;
-
 	// QoS 0
 	message.qos = MQTT::QOS0;
 	message.retained = false;
@@ -119,6 +125,18 @@ int mqtt(){
 	message.payloadlen = strlen(buf)+1;
 
 	return 1;
+}
+
+// function that sends the temperature
+void sendTemp(float temperature_value){
+	sprintf(buf, (char*)(temperature));
+	rc = client.publish(topic_temp, message);
+}
+
+// function that sends humidity
+void sendHum(float humidity_value){
+	sprintf(buf, (char*)(humidity_value));
+	rc = client.publish(topic_hum, message);
 }
 
 // main function
@@ -130,8 +148,12 @@ int main()
 		float temperature_value = temperature();
 		printf("The temperature is %f \n", temperature_value);
 
+		sendTemp(temperature_value);
+
 		float humidity_value = humidity();
 		printf("Humidity is %f \n\n", humidity_value);
+
+		sendHum(humidity_value);
 
 		wait_ms(PERIOD_MS);
 	}
