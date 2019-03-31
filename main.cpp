@@ -17,12 +17,13 @@ namespace {
 	#define PERIOD_MS 500
 }
 
-// Variables I2C & AnalogIn
+// Variable led & I2C & AnalogIn
+static DigitalOut led1(LED1);
 static I2C i2c(I2C1_SDA, I2C1_SCL);
 static AnalogIn analogic(ADC_IN1);
 uint8_t lm75_adress = 0x48 << 1;
 
-// Variables MQTT
+// Variable MQTT
 NetworkInterface *net;
 MQTTNetwork mqttNetwork;
 MQTT::Client<MQTTNetwork, Countdown> client;
@@ -34,6 +35,7 @@ char buf[10];
 // Topics
 char* topic_temp = "LucasYnovB2b/feeds/temperature";
 char* topic_hum = "LucasYnovB2b/feeds/humidity";
+char* topic_led = "LucasYnovB2b/feeds/led";
 
 
 // function that returns the temperature
@@ -109,34 +111,57 @@ int mqtt(){
 	data.clientID.cstring = "mbed-sample";
 	data.username.cstring = username;
 	data.password.cstring = key;
-	if ((rc = client.connect(data)) != 0){
-		printf("rc from MQTT connect is %d\r\n", rc);
-	}
-
-	if ((rc = client.subscribe(topic_temp, MQTT::QOS2, messageArrived)) != 0){
-			printf("rc from MQTT subscribe is %d\r\n", rc);
-	}
-
-	// QoS 0
-	message.qos = MQTT::QOS0;
-	message.retained = false;
-	message.dup = false;
-	message.payload = (void*)buf;
-	message.payloadlen = strlen(buf)+1;
 
 	return 1;
 }
 
 // function that sends the temperature
 void sendTemp(float temperature_value){
-	sprintf(buf, (char*)(temperature));
+	if ((rc = client.subscribe(topic_temp, MQTT::QOS2, messageArrived)) != 0){
+		printf("rc from MQTT subscribe is %d\r\n", rc);
+	}
+
+	// QoS 0
+	char buf[100];
+	sprintf(buf, "%f", temperature_value);
+	message.qos = MQTT::QOS0;
+	message.retained = false;
+	message.dup = false;
+	message.payload = (void*)buf;
+	message.payloadlen = strlen(buf)+1;
 	rc = client.publish(topic_temp, message);
 }
 
 // function that sends humidity
 void sendHum(float humidity_value){
-	sprintf(buf, (char*)(humidity_value));
+	if ((rc = client.subscribe(topic_hum, MQTT::QOS2, messageArrived)) != 0){
+		printf("rc from MQTT subscribe is %d\r\n", rc);
+	}
+
+	// QoS 0
+	char buf[100];
+	sprintf(buf, "%f", humidity_value);
+	message.qos = MQTT::QOS0;
+	message.retained = false;
+	message.dup = false;
+	message.payload = (void*)buf;
+	message.payloadlen = strlen(buf)+1;
 	rc = client.publish(topic_hum, message);
+}
+
+// function that sends humidity
+void turnStateLed(){
+	if ((rc = client.subscribe(topic_led, MQTT::QOS2, messageArrived)) != 0){
+		printf("rc from MQTT subscribe is %d\r\n", rc);
+	}
+
+	/* Not finished - Just a test
+	if(? == "ON"){
+		led1 = 1;
+	}
+	else{
+		led1 = 0;
+	}*/
 }
 
 // main function
@@ -145,6 +170,8 @@ int main()
 	mqtt();
 
 	while(true){
+		turnStateLed();
+
 		float temperature_value = temperature();
 		printf("The temperature is %f \n", temperature_value);
 
